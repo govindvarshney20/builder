@@ -1,31 +1,17 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
-
-const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-3.1-pro-preview";
-const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "gemini-3-flash-preview";
-
 export async function askGemini(prompt: string, systemInstruction?: string): Promise<string> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: PRIMARY_MODEL,
-      ...(systemInstruction && { systemInstruction }),
-    });
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  } catch {
-    try {
-      const fallbackModel = genAI.getGenerativeModel({
-        model: FALLBACK_MODEL,
-        ...(systemInstruction && { systemInstruction }),
-      });
-      const result = await fallbackModel.generateContent(prompt);
-      return result.response.text();
-    } catch (fallbackError) {
-      console.error("Gemini API error:", fallbackError);
-      throw new Error("Failed to get response from AI. Please try again.");
-    }
+  const response = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, systemInstruction }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || "Failed to get response from AI. Please try again.");
   }
+
+  const data = await response.json();
+  return data.text;
 }
 
 export async function streamGemini(
@@ -33,36 +19,47 @@ export async function streamGemini(
   onChunk: (text: string) => void,
   systemInstruction?: string
 ): Promise<string> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: PRIMARY_MODEL,
-      ...(systemInstruction && { systemInstruction }),
-    });
-    const result = await model.generateContentStream(prompt);
-    let fullText = "";
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      fullText += text;
-      onChunk(fullText);
-    }
-    return fullText;
-  } catch {
-    try {
-      const fallbackModel = genAI.getGenerativeModel({
-        model: FALLBACK_MODEL,
-        ...(systemInstruction && { systemInstruction }),
-      });
-      const result = await fallbackModel.generateContentStream(prompt);
-      let fullText = "";
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        fullText += text;
+  const response = await fetch("/api/gemini/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, systemInstruction }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || "Failed to get response from AI. Please try again.");
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Failed to get response stream.");
+  }
+
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n").filter((line) => line.startsWith("data: "));
+
+    for (const line of lines) {
+      const data = line.slice(6);
+      if (data === "[DONE]") break;
+
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.error) throw new Error(parsed.error);
+        fullText += parsed.text;
         onChunk(fullText);
+      } catch (e) {
+        if (e instanceof SyntaxError) continue;
+        throw e;
       }
-      return fullText;
-    } catch (fallbackError) {
-      console.error("Gemini streaming error:", fallbackError);
-      throw new Error("Failed to get response from AI. Please try again.");
     }
   }
+
+  return fullText;
 }
