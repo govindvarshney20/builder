@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
-const PRIMARY_MODEL = "gemini-2.5-flash-preview-05-20";
-const FALLBACK_MODEL = "gemini-2.0-flash";
+const PRIMARY_MODEL = process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-3.1-pro-preview";
+const FALLBACK_MODEL = process.env.NEXT_PUBLIC_GEMINI_FALLBACK_MODEL || "gemini-3-flash-preview";
 
 export async function askGemini(prompt: string, systemInstruction?: string): Promise<string> {
   try {
