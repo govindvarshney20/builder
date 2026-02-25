@@ -106,11 +106,30 @@ export default function DailyChallengePage() {
   /* ---- load progress ---- */
   useEffect(() => {
     const userProgress = getProgress();
+
+    // Convert Record-based history back to ChallengeAttempt[]
+    let history: ChallengeAttempt[] = [];
+    const rawHistory = userProgress.dailyChallengeHistory;
+    if (rawHistory && typeof rawHistory === "object" && !Array.isArray(rawHistory)) {
+      // Stored as Record<string, { answered, correct, questionId }>
+      // Keys are "date_challengeId"
+      history = Object.entries(rawHistory).map(([key, val]) => {
+        const separatorIdx = key.indexOf("_");
+        const date = separatorIdx > -1 ? key.substring(0, separatorIdx) : key;
+        return {
+          challengeId: val.questionId,
+          date,
+          selectedIndex: -1, // Not stored in Record format
+          correct: val.correct,
+        };
+      });
+    } else if (Array.isArray(rawHistory)) {
+      history = rawHistory as unknown as ChallengeAttempt[];
+    }
+
     const initial: Progress = {
       xp: userProgress.totalXP ?? 0,
-      dailyChallengeHistory: Array.isArray(userProgress.dailyChallengeHistory)
-        ? userProgress.dailyChallengeHistory as unknown as ChallengeAttempt[]
-        : [],
+      dailyChallengeHistory: history,
       streak: userProgress.streak ?? 0,
       lastChallengeDate: userProgress.lastActiveDate || null,
     };
