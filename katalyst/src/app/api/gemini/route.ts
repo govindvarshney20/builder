@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const primaryModel = process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
-    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3-flash-preview";
+    const primaryModel = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.1-pro-preview";
 
     try {
       const model = genAI.getGenerativeModel({
